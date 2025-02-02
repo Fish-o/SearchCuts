@@ -1,0 +1,10 @@
+workspace = { members = ["sc-macros"] }
+[package]
+name = "searchcuts-prov"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# dbus = "0.9"
+dbus = "0.6"
+sc-macros = {path ="./sc-macros"}

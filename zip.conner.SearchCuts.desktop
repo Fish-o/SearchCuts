@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=SearchCuts
+Exec=gnome-calculator
+Icon=org.gnome.Calculator
+Terminal=False
+Type=Application
+Comment=Search shortcuts go brr!

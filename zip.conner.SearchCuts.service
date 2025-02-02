@@ -1,0 +1,12 @@
+[Unit]
+AssertPathExists=/home/conner/Documents/Code/Random/search-ext/searchcuts-prov
+
+[Service]
+WorkingDirectory=/home/conner/Documents/Code/Random/search-ext/searchcuts-prov
+ExecStart=/usr/bin/cargo run
+Restart=always
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target
