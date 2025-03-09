@@ -1,0 +1,1 @@
+systemctl start --user zip.conner.SearchCuts

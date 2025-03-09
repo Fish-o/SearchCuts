@@ -19,6 +19,9 @@ mod utils {
 enum ArgType {
     Const(String),
     Type(TypePath),
+    Word,
+    Text,
+    Number,
 }
 
 #[derive(Debug)]
@@ -40,10 +43,18 @@ impl Parse for MacroRules {
             let layer = input.parse::<syn::Ident>()?;
             let rule;
             bracketed!(rule in input);
+
             let rule = if rule.peek(LitStr) {
                 ArgType::Const(rule.parse::<LitStr>()?.value())
             } else if rule.peek(Ident) {
-                ArgType::Type(rule.parse::<TypePath>()?)
+                let ident = rule.parse::<Ident>()?;
+                match ident.to_string().as_ref() {
+                    "word" => ArgType::Word,
+                    "text" => ArgType::Text,
+                    "number" => ArgType::Number,
+                    m => panic!("Unsupported argtype '{m}'"),
+                }
+                // ArgType::Type(rule.parse::<TypePath>()?)
             } else {
                 // TODO: Add regex
                 panic!("Invalid parser rule.")
@@ -70,11 +81,8 @@ pub fn create_grammar(tokens: TokenStream) -> TokenStream {
 
     for (layer, rules) in parsed.rules {
         let mut options: Vec<proc_macro2::TokenStream> = vec![];
+        let mut arg_option = None;
         for (rule, res) in rules {
-            let c = match rule {
-                ArgType::Const(c) => c,
-                _ => todo!(),
-            };
             let res = match res {
                 MacroRuleResult::Fn(block) => quote! {
                    #block
@@ -83,39 +91,97 @@ pub fn create_grammar(tokens: TokenStream) -> TokenStream {
                 MacroRuleResult::Rule(ident) => {
                     let ident = format_ident!("layer_{ident}");
                     quote! {
-
-                        #ident(path)
+                        #ident(path, input, activate)
                     }
                 }
             };
-
+            let c = match rule {
+                ArgType::Const(c) => c,
+                a => {
+                    if arg_option.is_some() {
+                        panic!("Argument overloading is not supported.")
+                    }
+                    arg_option = Some((a, res));
+                    continue;
+                }
+            };
             options.push(
                 quote! {
-                    (#c.to_owned(), |path| #res)
+                    (#c.to_owned(), Box::new(|path, input| #res))
                 }
                 .into(),
             )
         }
         let layer = format_ident!("layer_{layer}");
-        result.push(quote! {
-            fn #layer(input: &str) -> Option<MetaResult> {
-                let options = [#(#options),*];
-                let data = options
-                    .into_iter()
-                    .filter(|(n, c)| input.starts_with(n))
-                    .collect::<Vec<_>>();
-                if data.len() == 1 {
-                    let d = &data[0];
-                    let new_input = &input[d.0.len()..];
-                    d.1(new_input.trim())
-                } else {
-                    None
-                }
+        if arg_option.is_some() && !options.is_empty() {
+            panic!("Can not have both an argument and a constant as options.")
+        }
+        match arg_option {
+            Some((ArgType::Text, res))=>{
+                result.push(quote! {
+                    fn #layer(path: String, input: &str, activate: bool) -> Vec<MetaResult> {
+                        #res
+                    }
+                });
+            },
+            Some((_, res)) =>{
+                todo!();
+                result.push(quote! {
+                    fn #layer(path: String, input: &str) -> Vec<MetaResult> {
+                        vec![MetaResult {
+                            name: format!("{} {n}", path.trim()),
+                            description: format!("{} {input}", path.trim()),
+                            path: format!("{path} {input}"),
+                            icon: None
+                        }]
+                    }
+                });
             }
-        });
+            None => result.push(quote! {
+                fn #layer(path: String, input: &str, activate: bool) -> Vec<MetaResult> {
+                    let options: Vec<(String, Box<dyn Fn(String, &str) -> Vec<MetaResult>>)> = vec![#(#options),*];
+                    let data = options
+                        .iter()
+                        .filter(|(n, c)| input.starts_with(n))
+                        .collect::<Vec<_>>();
+                    if activate && data.len() != 1 {
+                        return vec![]
+                    }
+                    println!("-'{path}' -'{input}' {} {}", options.len(), data.len());
+                    if data.len() == 1 {
+                        let d = &data[0];
+                        let new_input = (&input[d.0.len()..]).trim();
+                        let rem_len = input.len() - new_input.len();
+                        let path = format!("{path}{}", &input[..rem_len]);
+                        d.1(path, new_input)
+                    } else if data.len() == 0{
+                        let r = options
+                            .iter()
+                            .filter(|(n, c)| n.starts_with(input))
+                            .map(|(n,_)| MetaResult {
+                                name: format!("{} {n}", path.trim()),
+                                description: format!("{} {input}", path.trim()),
+                                path: format!("{path} {input}"),
+                                icon: None
+                            })
+                            .collect::<Vec<_>>();
+                        dbg!(&r);
+                        r
+                    } else {
+
+                        vec![]
+                    }
+                }
+            }),
+        }
     }
 
     quote! {
+        enum ParsedArg {
+            Text(String),
+            Word(String),
+            Number(String),
+        }
         #(#result)*
     }
     .into()

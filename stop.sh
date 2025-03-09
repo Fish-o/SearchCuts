@@ -1,0 +1,1 @@
+systemctl stop --user zip.conner.SearchCuts

@@ -1,16 +1,29 @@
+use dotenv::dotenv;
+use std::{cell::RefCell, rc::Rc};
+
 use bus_stuff::{connect, search_iface, MetaResult};
-use logic::Handler;
+use dbus::Error;
+use searchcuts::Handler;
 
 // #![deny(warnings)]
+pub mod ai_stuff;
 pub mod bus_stuff;
-mod logic;
+pub mod keyboard;
+mod searchcuts;
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    dotenv().ok();
+    serach_cuts();
+    Ok(())
+}
+
+fn serach_cuts() {
     println!("Searchcuts started!");
-    let mut handler = Handler::new();
+    let handler = Rc::new(Handler::new());
     let conn = connect().unwrap();
     let f = dbus::tree::Factory::new_fn();
-    let search_interface = search_iface(move |data| -> Option<MetaResult> { handler.handle(data) });
+    let search_interface = search_iface(handler.clone());
 
     const SEARCH_PATH: &str = "/zip/conner/SearchCuts/SearchProvider";
     let tree = f.tree(()).add(
