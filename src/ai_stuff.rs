@@ -31,7 +31,7 @@ pub fn get_translation_model() -> Agent<CompletionModel> {
 pub fn get_assistant_model(enable_thinking: bool) -> Agent<CompletionModel> {
     let client = gemini::Client::from_env();
     client
-        .agent(if enable_thinking { "gemini-2.0-flash-thinking-exp-01-21" } else { "gemini-2.0-flash-lite"})
+        .agent(if enable_thinking { "gemini-2.0-flash-thinking-exp-01-21" } else { "gemini-2.0-flash-lite" })
         .preamble(
             "You are an assistant that has control over the users keyboard.
             Your task is to give the text that the user requests for, this should not include any text formatting such as bold words or code blocks.
